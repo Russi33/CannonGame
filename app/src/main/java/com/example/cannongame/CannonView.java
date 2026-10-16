@@ -1,15 +1,21 @@
 package com.example.cannongame;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.media.AudioAttributes;
+import android.media.SoundPool;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import com.example.cannongame.R;
 
 public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
     public static final int BALL_SPEED = 800;
@@ -18,22 +24,37 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
     public static final int MISS_PENALTY = 2;
     public static final int HIT_REWARD = 3;
 
+    // Elementos do jogo
     private Cannon cannon;
     private Cannonball cannonball;
     private Blocker blocker;
     private List<Target> targets;
 
+    // Threads e Estado
     private CannonThread cannonThread;
     private SurfaceHolder holder;
     private Paint textPaint;
     private Paint backgroundPaint;
 
+    // Variáveis de jogo
     private int screenWidth;
     private int screenHeight;
     private double timeLeft;
     private int shotsFired;
     private double totalElapsedTime;
     private boolean gameOver;
+
+    // Bônus Extra: Sistema de Recorde (Highscore) via SharedPreferences
+    private int highScore;
+    private SharedPreferences preferences;
+    private static final String HIGH_SCORE_KEY = "HIGH_SCORE";
+
+    // Gerenciamento de Áudio (SoundPool)
+    private SoundPool soundPool;
+    private Map<Integer, Integer> soundMap;
+    public static final int CANNON_FIRE_SOUND = 1;
+    public static final int TARGET_HIT_SOUND = 2;
+    public static final int BLOCKER_HIT_SOUND = 3;
 
     public CannonView(Context context) {
         super(context);
@@ -47,6 +68,33 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
 
         backgroundPaint = new Paint();
         backgroundPaint.setColor(Color.WHITE);
+
+        // Inicializa SharedPreferences para o Recorde
+        preferences = context.getSharedPreferences("CannonGamePrefs", Context.MODE_PRIVATE);
+        highScore = preferences.getInt(HIGH_SCORE_KEY, 0);
+
+        // Inicializa o SoundPool para efeitos sonoros
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+
+        soundPool = new SoundPool.Builder()
+                .setMaxStreams(5)
+                .setAudioAttributes(audioAttributes)
+                .build();
+
+        soundMap = new HashMap<>();
+        // Carrega os arquivos de áudio salvos na pasta res/raw
+        soundMap.put(CANNON_FIRE_SOUND, soundPool.load(context, R.raw.cannon_fire, 1));
+        soundMap.put(TARGET_HIT_SOUND, soundPool.load(context, R.raw.target_hit, 1));
+        soundMap.put(BLOCKER_HIT_SOUND, soundPool.load(context, R.raw.blocker_hit, 1));
+    }
+
+    public void playSound(int soundId) {
+        if (soundMap != null && soundMap.containsKey(soundId)) {
+            soundPool.play(soundMap.get(soundId), 1.0f, 1.0f, 1, 0, 1.0f);
+        }
     }
 
     public void newGame() {
@@ -124,7 +172,6 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
         int action = event.getAction();
 
         if (action == MotionEvent.ACTION_DOWN) {
-            // Se o jogo acabou, qualquer toque na tela inicia uma nova partida imediatamente
             if (gameOver) {
                 newGame();
                 return true;
@@ -152,6 +199,7 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
             if ((cannonball == null || !cannonball.isOnScreen()) && !gameOver) {
                 cannonball = cannon.fire();
                 shotsFired++;
+                playSound(CANNON_FIRE_SOUND);
             }
         }
     }
@@ -182,6 +230,13 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
 
         if (targets.isEmpty()) {
             gameOver = true;
+
+            if (highScore == 0 || shotsFired < highScore) {
+                highScore = shotsFired;
+                SharedPreferences.Editor editor = preferences.edit();
+                editor.putInt(HIGH_SCORE_KEY, highScore);
+                editor.apply();
+            }
         }
     }
 
@@ -190,6 +245,7 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
             if (blocker != null && cannonball.collidesWith(blocker)) {
                 cannonball.reverseVelocityX();
                 timeLeft -= MISS_PENALTY;
+                playSound(BLOCKER_HIT_SOUND);
             }
 
             for (int i = targets.size() - 1; i >= 0; i--) {
@@ -198,6 +254,7 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
                     targets.remove(i);
                     cannonball.removeCannonball();
                     timeLeft += HIT_REWARD;
+                    playSound(TARGET_HIT_SOUND);
                     break;
                 }
             }
@@ -211,6 +268,9 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
 
         canvas.drawText("Tempo restante: " + String.format("%.1f", timeLeft) + "s", 30, 50, textPaint);
         canvas.drawText("Tiros disparados: " + shotsFired, 30, 100, textPaint);
+        if (highScore > 0) {
+            canvas.drawText("Melhor Pontuação: " + highScore + " tiros", 30, 150, textPaint);
+        }
 
         if (cannon != null) cannon.draw(canvas);
         if (cannonball != null && cannonball.isOnScreen()) cannonball.draw(canvas);
@@ -247,6 +307,13 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
             cannonThread = new CannonThread(getHolder(), this);
             cannonThread.setRunning(true);
             cannonThread.start();
+        }
+    }
+
+    public void releaseResources() {
+        if (soundPool != null) {
+            soundPool.release();
+            soundPool = null;
         }
     }
 

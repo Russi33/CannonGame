@@ -31,4 +31,12 @@ public class MainActivity extends AppCompatActivity {
             cannonView.resume();
         }
     }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (cannonView != null) {
+            cannonView.releaseResources();
+        }
+    }
 }
