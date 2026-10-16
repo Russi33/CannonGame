@@ -23,22 +23,35 @@ public class GameElement {
         isPlaying = true;
     }
 
-    // Atualiza a posição do elemento com base na velocidade
     public void update(double interval) {
         location.offset(velocityX * (float) interval, velocityY * (float) interval);
     }
 
-    // Desenha o elemento na tela (Canvas)
     public void draw(Canvas canvas) {
         canvas.drawRect(location, paint);
     }
 
-    // Verifica se colidiu com outro elemento
-    public boolean collides(GameElement element) {
-        return RectF.intersects(location, element.location);
+    public boolean collidesWith(GameElement element) {
+        return element != null && RectF.intersects(location, element.location);
     }
 
     public RectF getLocation() {
         return location;
+    }
+
+    public float getX() {
+        return location.left;
+    }
+
+    public float getY() {
+        return location.top;
+    }
+
+    public float getWidth() {
+        return width;
+    }
+
+    public float getHeight() {
+        return height;
     }
 }
