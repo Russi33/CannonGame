@@ -242,12 +242,14 @@ public class CannonView extends SurfaceView implements SurfaceHolder.Callback {
 
     public void testForCollisions() {
         if (cannonball != null && cannonball.isOnScreen()) {
+            // 1. Colisão com o Blocker (Obstáculo)
             if (blocker != null && cannonball.collidesWith(blocker)) {
-                cannonball.reverseVelocityX();
-                timeLeft -= MISS_PENALTY;
-                playSound(BLOCKER_HIT_SOUND);
+                cannonball.removeCannonball(); // Remove a bola para evitar múltiplas colisões seguidas
+                timeLeft -= MISS_PENALTY;      // Aplica a penalidade apenas UMA vez
+                playSound(BLOCKER_HIT_SOUND);  // Toca o som de colisão
             }
 
+            // 2. Colisão com os Alvos (Targets)
             for (int i = targets.size() - 1; i >= 0; i--) {
                 Target target = targets.get(i);
                 if (cannonball.collidesWith(target)) {
